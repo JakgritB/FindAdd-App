@@ -8,13 +8,17 @@ interface PlacesListProps {
   onSelectPlace: (place: LongdoPlace) => void;
 }
 
+const stripHtml = (html: string) => {
+  return html.replace(/<[^>]*>/g, '');
+};
+
 export default function PlacesList({ places, onRemovePlace, onSelectPlace }: PlacesListProps) {
   return (
     <div className="w-full bg-white rounded-lg shadow-md p-4 mt-4">
       <h3 className="text-lg font-semibold mb-3">
         สถานที่ที่เพิ่มแล้ว ({places.length}/60)
       </h3>
-      
+
       {places.length === 0 ? (
         <p className="text-gray-500 text-center py-4">
           ยังไม่มีสถานที่ที่เพิ่ม
@@ -32,12 +36,12 @@ export default function PlacesList({ places, onRemovePlace, onSelectPlace }: Pla
                   <span className="text-sm font-medium text-gray-500">
                     #{index + 1}
                   </span>
-                  <span className="font-medium text-gray-900">
-                    {place.name}
+                  <span className="font-medium text-gray-800">
+                    {stripHtml(place.name)}
                   </span>
                 </div>
                 <div className="text-sm text-gray-600 mt-1">
-                    {place.address.replace(/<[^>]*>/g, '')}
+                  {stripHtml(place.address)}
                 </div>
               </div>
               <button

@@ -4,7 +4,6 @@ import { useState } from 'react';
 import SearchBar from './components/SearchBar';
 import PlacesList from './components/PlacesList';
 import RoutePanel from './components/RoutePanel';
-import ExportPanel from './components/ExportPanel';
 import LongdoMap from './components/LongdoMap';
 import NavigationMode from './components/NavigationMode';
 import { LongdoPlace, RouteResponse } from './types/longdo';
@@ -104,12 +103,6 @@ export default function Home() {
               onRouteCalculated={handleRouteCalculated}
               onStartNavigation={handleStartNavigation}
             />
-            {calculatedRoute && (
-              <ExportPanel 
-                places={places}
-                route={calculatedRoute}
-              />
-            )}
           </div>
           
           <div className="lg:col-span-2">

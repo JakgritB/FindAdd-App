@@ -15,6 +15,10 @@ export default function RoutePanel({ places, onRouteCalculated, onStartNavigatio
   const [startLocation, setStartLocation] = useState<LongdoPlace | null>(null);
   const [useCurrentLocation, setUseCurrentLocation] = useState(false);
 
+  const stripHtml = (html: string) => {
+    return html.replace(/<[^>]*>/g, '');
+  };
+
   const getCurrentLocation = (): Promise<LongdoPlace> => {
     return new Promise((resolve, reject) => {
       if (!navigator.geolocation) {
@@ -51,10 +55,10 @@ export default function RoutePanel({ places, onRouteCalculated, onStartNavigatio
     }
 
     setIsCalculating(true);
-    
+
     try {
       let start: LongdoPlace;
-      
+
       if (useCurrentLocation) {
         try {
           start = await getCurrentLocation();
@@ -70,7 +74,7 @@ export default function RoutePanel({ places, onRouteCalculated, onStartNavigatio
       }
 
       const destinations = useCurrentLocation ? places : places.slice(1);
-      
+
       const response = await fetch('/api/route-planning', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -81,7 +85,7 @@ export default function RoutePanel({ places, onRouteCalculated, onStartNavigatio
       });
 
       const data = await response.json();
-      
+
       if (data.success) {
         setRoute(data);
         onRouteCalculated(data);
@@ -144,11 +148,10 @@ export default function RoutePanel({ places, onRouteCalculated, onStartNavigatio
           <button
             onClick={calculateRoute}
             disabled={isCalculating || places.length === 0}
-            className={`w-full py-2 px-4 rounded-lg font-medium transition-colors flex items-center justify-center gap-2 ${
-              isCalculating || places.length === 0
-                ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                : 'bg-blue-500 text-white hover:bg-blue-600'
-            }`}
+            className={`w-full py-2 px-4 rounded-lg font-medium transition-colors flex items-center justify-center gap-2 ${isCalculating || places.length === 0
+              ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+              : 'bg-blue-500 text-white hover:bg-blue-600'
+              }`}
           >
             {isCalculating ? (
               <>
@@ -207,26 +210,24 @@ export default function RoutePanel({ places, onRouteCalculated, onStartNavigatio
               {route.route.map((location, index) => (
                 <div
                   key={location.id}
-                  className={`flex items-start gap-2 p-2 rounded-lg transition-colors ${
-                    index === 0 
-                      ? 'bg-green-50 border border-green-200' 
-                      : index === route.route.length - 1
+                  className={`flex items-start gap-2 p-2 rounded-lg transition-colors ${index === 0
+                    ? 'bg-green-50 border border-green-200'
+                    : index === route.route.length - 1
                       ? 'bg-red-50 border border-red-200'
                       : 'bg-gray-50 hover:bg-gray-100'
-                  }`}
+                    }`}
                 >
-                  <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${
-                    index === 0 
-                      ? 'bg-green-500 text-white' 
-                      : index === route.route.length - 1
+                  <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${index === 0
+                    ? 'bg-green-500 text-white'
+                    : index === route.route.length - 1
                       ? 'bg-red-500 text-white'
                       : 'bg-blue-500 text-white'
-                  }`}>
+                    }`}>
                     {index === 0 ? '🚚' : index === route.route.length - 1 ? '🏁' : index}
                   </div>
                   <div className="flex-1">
-                    <div className="font-medium text-sm">{location.name}</div>
-                    <div className="text-gray-500 text-xs">{location.address}</div>
+                    <div className="font-medium text-sm">{stripHtml(location.name)}</div>
+                    <div className="text-gray-500 text-xs">{stripHtml(location.address)}</div>
                     {route.segments && route.segments[index] && (
                       <div className="flex items-center gap-3 mt-1">
                         <span className="text-xs text-blue-600">
@@ -244,33 +245,15 @@ export default function RoutePanel({ places, onRouteCalculated, onStartNavigatio
           </div>
 
           {/* ปุ่มดำเนินการ */}
-          <div className="flex gap-2">
+          <div>
             <button
               onClick={clearRoute}
-              className="flex-1 py-2 px-4 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
+              className="w-full py-2 px-4 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
             >
               ล้างเส้นทาง
             </button>
-            <button
-              onClick={() => {
-                const start = route.route[0];
-                const waypoints = route.route.slice(1, -1)
-                  .map(p => `${p.lat},${p.lon}`)
-                  .join('|');
-                const end = route.route[route.route.length - 1];
-                
-                const url = `https://www.google.com/maps/dir/${start.lat},${start.lon}/${waypoints ? waypoints + '/' : ''}${end.lat},${end.lon}`;
-                window.open(url, '_blank');
-              }}
-              className="flex-1 py-2 px-4 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors flex items-center justify-center gap-2"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-              </svg>
-              เปิดใน Google Maps
-            </button>
           </div>
-          
+
           {/* ปุ่มนำทางในแอพ */}
           {onStartNavigation && (
             <button

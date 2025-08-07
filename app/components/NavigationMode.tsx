@@ -1,7 +1,14 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import Script from 'next/script';
 import { RouteResponse } from '../types/longdo';
+
+declare global {
+  interface Window {
+    longdo: any;
+  }
+}
 
 interface NavigationModeProps {
   route: RouteResponse;
@@ -16,11 +23,193 @@ export default function NavigationMode({ route, onUpdatePosition, onClose }: Nav
   const [distanceToNext, setDistanceToNext] = useState<number>(0);
   const [isNavigating, setIsNavigating] = useState(false);
   const [speed, setSpeed] = useState(0);
+  const [apiKey, setApiKey] = useState<string>('');
+  
   const watchIdRef = useRef<number | null>(null);
+  const mapRef = useRef<HTMLDivElement>(null);
+  const mapInstance = useRef<any>(null);
+  const userMarkerRef = useRef<any>(null);
+  const routeLineRef = useRef<any>(null);
+  const destinationMarkersRef = useRef<any[]>([]);
 
-  // คำนวณระยะทางระหว่าง 2 จุด
+  // ดึง API Key
+  useEffect(() => {
+    fetch('/api/map-config')
+      .then(res => res.json())
+      .then(data => setApiKey(data.apiKey))
+      .catch(err => console.error('Failed to load map config:', err));
+  }, []);
+
+  // Initialize Map
+  const initMap = () => {
+    if (!mapRef.current || !window.longdo) return;
+
+    const startPoint = route.route[0];
+    const map = new window.longdo.Map({
+      placeholder: mapRef.current,
+      lastView: false,
+      zoom: 16,
+      location: { lon: startPoint.lon, lat: startPoint.lat }
+    });
+
+    // เพิ่ม Traffic Layer
+    map.Layers.setBase(window.longdo.Layers.NORMAL);
+    map.Layers.add(window.longdo.Layers.TRAFFIC);
+
+    mapInstance.current = map;
+    
+    // วาดเส้นทาง
+    drawRoute();
+    
+    // เพิ่มหมุดปลายทาง
+    addDestinationMarkers();
+  };
+
+  // วาดเส้นทางบนแผนที่
+  const drawRoute = () => {
+    if (!mapInstance.current || !window.longdo) return;
+
+    // ลบเส้นทางเก่า
+    if (routeLineRef.current) {
+      mapInstance.current.Overlays.remove(routeLineRef.current);
+    }
+
+    // วาดเส้นทางใหม่
+    if (route.paths && route.paths.length > 0) {
+      const pathCoordinates = route.paths.map((point: any) => ({
+        lon: point.lon || point[0],
+        lat: point.lat || point[1]
+      }));
+
+      const line = new window.longdo.Polyline(pathCoordinates, {
+        lineWidth: 6,
+        lineColor: 'rgba(59, 130, 246, 0.8)',
+        lineStyle: window.longdo.LineStyle.Solid
+      });
+
+      mapInstance.current.Overlays.add(line);
+      routeLineRef.current = line;
+    } else {
+      // Fallback: วาดเส้นตรง
+      const lineCoordinates = route.route.map(place => ({
+        lon: place.lon,
+        lat: place.lat
+      }));
+
+      const line = new window.longdo.Polyline(lineCoordinates, {
+        lineWidth: 5,
+        lineColor: 'rgba(59, 130, 246, 0.6)',
+        lineStyle: window.longdo.LineStyle.Dashed
+      });
+
+      mapInstance.current.Overlays.add(line);
+      routeLineRef.current = line;
+    }
+  };
+
+  // เพิ่มหมุดปลายทาง
+  const addDestinationMarkers = () => {
+    if (!mapInstance.current || !window.longdo) return;
+
+    // ลบหมุดเก่า
+    destinationMarkersRef.current.forEach(marker => {
+      mapInstance.current.Overlays.remove(marker);
+    });
+    destinationMarkersRef.current = [];
+
+    // เพิ่มหมุดใหม่
+    route.route.forEach((place, index) => {
+      let markerColor = '#3B82F6';
+      let markerIcon = (index + 1).toString();
+      
+      if (index === 0) {
+        markerColor = '#10B981';
+        markerIcon = 'S';
+      } else if (index === route.route.length - 1) {
+        markerColor = '#EF4444';
+        markerIcon = 'F';
+      }
+
+      const marker = new window.longdo.Marker(
+        { lon: place.lon, lat: place.lat },
+        {
+          title: place.name,
+          detail: place.address,
+          icon: {
+            html: `<div style="
+              background: ${markerColor}; 
+              color: white; 
+              width: 30px; 
+              height: 30px; 
+              border-radius: 50%; 
+              display: flex; 
+              align-items: center; 
+              justify-content: center; 
+              font-weight: bold; 
+              box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+              border: 2px solid white;
+            ">${markerIcon}</div>`,
+            offset: { x: 15, y: 15 }
+          }
+        }
+      );
+      
+      mapInstance.current.Overlays.add(marker);
+      destinationMarkersRef.current.push(marker);
+    });
+  };
+
+  // อัปเดตตำแหน่งบนแผนที่
+  const updateUserPosition = (lat: number, lon: number) => {
+    if (!mapInstance.current || !window.longdo) return;
+
+    // ลบ marker เก่า
+    if (userMarkerRef.current) {
+      mapInstance.current.Overlays.remove(userMarkerRef.current);
+    }
+
+    // เพิ่ม marker ใหม่
+    const userMarker = new window.longdo.Marker(
+      { lon: lon, lat: lat },
+      {
+        title: 'ตำแหน่งของคุณ',
+        icon: {
+          html: `
+            <div style="position: relative;">
+              <div style="
+                width: 16px; 
+                height: 16px; 
+                background: #3B82F6; 
+                border: 3px solid white; 
+                border-radius: 50%; 
+                box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+              "></div>
+              <div style="
+                position: absolute; 
+                top: -8px; 
+                left: -8px; 
+                width: 32px; 
+                height: 32px; 
+                background: rgba(59, 130, 246, 0.3); 
+                border-radius: 50%; 
+                animation: pulse 2s infinite;
+              "></div>
+            </div>`,
+          offset: { x: 8, y: 8 }
+        }
+      }
+    );
+    
+    mapInstance.current.Overlays.add(userMarker);
+    userMarkerRef.current = userMarker;
+
+    // เลื่อนแผนที่ตามตำแหน่ง
+    mapInstance.current.location({ lon: lon, lat: lat }, true);
+  };
+
+  // คำนวณระยะทาง
   const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
-    const R = 6371000; // รัศมีโลกเป็นเมตร
+    const R = 6371000;
     const dLat = (lat2 - lat1) * Math.PI / 180;
     const dLon = (lon2 - lon1) * Math.PI / 180;
     const a = 
@@ -28,7 +217,7 @@ export default function NavigationMode({ route, onUpdatePosition, onClose }: Nav
       Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
       Math.sin(dLon/2) * Math.sin(dLon/2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-    return R * c; // ระยะทางเป็นเมตร
+    return R * c;
   };
 
   // เริ่มการนำทาง
@@ -40,16 +229,16 @@ export default function NavigationMode({ route, onUpdatePosition, onClose }: Nav
 
     setIsNavigating(true);
 
-    // ติดตาม GPS
     watchIdRef.current = navigator.geolocation.watchPosition(
       (position) => {
         setCurrentPosition(position);
         setSpeed(position.coords.speed || 0);
         
         // อัปเดตตำแหน่งบนแผนที่
+        updateUserPosition(position.coords.latitude, position.coords.longitude);
         onUpdatePosition(position.coords.latitude, position.coords.longitude);
         
-        // ตรวจสอบว่าถึงจุดหมายหรือยัง
+        // ตรวจสอบการนำทาง
         checkNavigation(position);
       },
       (error) => {
@@ -67,7 +256,6 @@ export default function NavigationMode({ route, onUpdatePosition, onClose }: Nav
   // ตรวจสอบการนำทาง
   const checkNavigation = (position: GeolocationPosition) => {
     if (currentSegmentIndex >= route.route.length - 1) {
-      // ถึงจุดหมายแล้ว
       speakDirection('คุณถึงจุดหมายแล้ว');
       stopNavigation();
       return;
@@ -83,17 +271,44 @@ export default function NavigationMode({ route, onUpdatePosition, onClose }: Nav
 
     setDistanceToNext(distance);
 
-    // ถ้าใกล้จุดต่อไปแล้ว (น้อยกว่า 50 เมตร)
     if (distance < 50) {
       setCurrentSegmentIndex(prev => prev + 1);
-      speakDirection(`ถึง ${nextPoint.name} แล้ว จุดต่อไปคือ ${route.route[currentSegmentIndex + 2]?.name || 'จุดหมายสุดท้าย'}`);
+      speakDirection(`ถึง ${nextPoint.name} แล้ว`);
+      
+      // Highlight marker ที่ถึงแล้ว
+      if (destinationMarkersRef.current[currentSegmentIndex + 1]) {
+        // เปลี่ยนสี marker
+        mapInstance.current.Overlays.remove(destinationMarkersRef.current[currentSegmentIndex + 1]);
+        
+        const completedMarker = new window.longdo.Marker(
+          { lon: nextPoint.lon, lat: nextPoint.lat },
+          {
+            title: `✓ ${nextPoint.name}`,
+            icon: {
+              html: `<div style="
+                background: #10B981; 
+                color: white; 
+                width: 30px; 
+                height: 30px; 
+                border-radius: 50%; 
+                display: flex; 
+                align-items: center; 
+                justify-content: center; 
+                font-weight: bold;
+              ">✓</div>`,
+              offset: { x: 15, y: 15 }
+            }
+          }
+        );
+        
+        mapInstance.current.Overlays.add(completedMarker);
+        destinationMarkersRef.current[currentSegmentIndex + 1] = completedMarker;
+      }
     }
 
-    // อัปเดตคำแนะนำการเลี้ยว
     updateTurnInstructions(position, nextPoint);
   };
 
-  // อัปเดตคำแนะนำการเลี้ยว
   const updateTurnInstructions = (position: GeolocationPosition, nextPoint: any) => {
     const distance = calculateDistance(
       position.coords.latitude,
@@ -111,7 +326,6 @@ export default function NavigationMode({ route, onUpdatePosition, onClose }: Nav
     }
   };
 
-  // พูดคำแนะนำ (Web Speech API)
   const speakDirection = (text: string) => {
     if ('speechSynthesis' in window) {
       const utterance = new SpeechSynthesisUtterance(text);
@@ -121,7 +335,6 @@ export default function NavigationMode({ route, onUpdatePosition, onClose }: Nav
     }
   };
 
-  // หยุดการนำทาง
   const stopNavigation = () => {
     if (watchIdRef.current !== null) {
       navigator.geolocation.clearWatch(watchIdRef.current);
@@ -130,7 +343,6 @@ export default function NavigationMode({ route, onUpdatePosition, onClose }: Nav
     setIsNavigating(false);
   };
 
-  // Cleanup
   useEffect(() => {
     return () => {
       stopNavigation();
@@ -138,10 +350,10 @@ export default function NavigationMode({ route, onUpdatePosition, onClose }: Nav
   }, []);
 
   return (
-    <div className="fixed inset-0 bg-white z-50 flex flex-col">
+    <div className="fixed inset-0 bg-gray-100 z-50 flex flex-col">
       {/* Header */}
-      <div className="bg-blue-600 text-white p-4 shadow-lg">
-        <div className="flex justify-between items-center">
+      <div className="bg-blue-600 text-white shadow-lg z-10">
+        <div className="px-4 py-3 flex justify-between items-center">
           <h2 className="text-xl font-bold">🧭 โหมดนำทาง</h2>
           <button
             onClick={() => {
@@ -155,114 +367,109 @@ export default function NavigationMode({ route, onUpdatePosition, onClose }: Nav
             </svg>
           </button>
         </div>
-      </div>
-
-      {/* Navigation Info */}
-      <div className="flex-1 overflow-auto">
-        {/* Current Status */}
-        <div className="bg-gray-100 p-4 border-b">
+        
+        {/* Navigation Info Bar */}
+        <div className="bg-blue-700 px-4 py-3">
           <div className="text-center">
-            <div className="text-4xl font-bold text-blue-600">
+            <div className="text-3xl font-bold">
               {distanceToNext > 1000 
                 ? `${(distanceToNext / 1000).toFixed(1)} กม.`
                 : `${Math.round(distanceToNext)} ม.`
               }
             </div>
-            <div className="text-xl text-gray-700 mt-2">{nextTurn}</div>
+            <div className="text-lg mt-1">{nextTurn}</div>
             {speed > 0 && (
-              <div className="text-sm text-gray-500 mt-1">
+              <div className="text-sm mt-1 opacity-75">
                 ความเร็ว: {(speed * 3.6).toFixed(0)} กม./ชม.
               </div>
             )}
           </div>
         </div>
-
-        {/* Destination Info */}
-        <div className="p-4 bg-white">
-          <h3 className="font-semibold text-lg mb-2">กำลังไปยัง:</h3>
-          {currentSegmentIndex < route.route.length - 1 && (
-            <div className="bg-blue-50 p-3 rounded-lg">
-              <div className="font-medium">
-                📍 {route.route[currentSegmentIndex + 1].name}
-              </div>
-              <div className="text-sm text-gray-600 mt-1">
-                {route.route[currentSegmentIndex + 1].address}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Route Progress */}
-        <div className="p-4">
-          <h3 className="font-semibold mb-2">ความคืบหน้า:</h3>
-          <div className="relative pt-1">
-            <div className="flex mb-2 items-center justify-between">
-              <div>
-                <span className="text-xs font-semibold inline-block text-blue-600">
-                  {currentSegmentIndex + 1} / {route.route.length} จุด
-                </span>
-              </div>
-              <div className="text-right">
-                <span className="text-xs font-semibold inline-block text-blue-600">
-                  {Math.round(((currentSegmentIndex + 1) / route.route.length) * 100)}%
-                </span>
-              </div>
-            </div>
-            <div className="overflow-hidden h-2 mb-4 text-xs flex rounded bg-blue-200">
-              <div 
-                style={{ width: `${((currentSegmentIndex + 1) / route.route.length) * 100}%` }}
-                className="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-blue-500 transition-all duration-500"
-              ></div>
-            </div>
-          </div>
-        </div>
-
-        {/* Next Destinations */}
-        <div className="p-4">
-          <h3 className="font-semibold mb-2">จุดหมายถัดไป:</h3>
-          <div className="space-y-2 max-h-60 overflow-y-auto">
-            {route.route.slice(currentSegmentIndex + 1).map((place, index) => (
-              <div 
-                key={place.id}
-                className={`p-2 rounded-lg ${
-                  index === 0 ? 'bg-green-50 border border-green-200' : 'bg-gray-50'
-                }`}
-              >
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-gray-500">
-                    {currentSegmentIndex + index + 2}.
-                  </span>
-                  <span className="text-sm font-medium">
-                    {place.name}
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
       </div>
 
-      {/* Control Buttons */}
-      <div className="p-4 bg-white border-t">
-        {!isNavigating ? (
-          <button
-            onClick={startNavigation}
-            className="w-full py-3 bg-green-500 text-white rounded-lg font-semibold hover:bg-green-600 transition-colors flex items-center justify-center gap-2"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
-            </svg>
-            เริ่มนำทาง
-          </button>
+      {/* Map Container */}
+      <div className="flex-1 relative">
+        {apiKey ? (
+          <>
+            <Script
+              src={`https://api.longdo.com/map/?key=${apiKey}`}
+              strategy="afterInteractive"
+              onLoad={initMap}
+            />
+            <div ref={mapRef} className="w-full h-full" />
+            
+            {/* Zoom Controls */}
+            <div className="absolute bottom-20 right-4 flex flex-col gap-2">
+              <button
+                onClick={() => mapInstance.current?.zoom(mapInstance.current.zoom() + 1)}
+                className="bg-white p-2 rounded-lg shadow-lg"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+              </button>
+              <button
+                onClick={() => mapInstance.current?.zoom(mapInstance.current.zoom() - 1)}
+                className="bg-white p-2 rounded-lg shadow-lg"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                </svg>
+              </button>
+            </div>
+          </>
         ) : (
-          <button
-            onClick={stopNavigation}
-            className="w-full py-3 bg-red-500 text-white rounded-lg font-semibold hover:bg-red-600 transition-colors"
-          >
-            หยุดนำทาง
-          </button>
+          <div className="flex items-center justify-center h-full">
+            <div className="text-gray-500">กำลังโหลดแผนที่...</div>
+          </div>
         )}
       </div>
+
+      {/* Bottom Control Panel */}
+      <div className="bg-white border-t shadow-lg">
+        <div className="px-4 py-3">
+          <div className="text-sm text-gray-600 mb-2">
+            กำลังไปยัง: <span className="font-semibold text-gray-900">
+              {route.route[currentSegmentIndex + 1]?.name || 'จุดหมายสุดท้าย'}
+            </span>
+          </div>
+          
+          <div className="flex gap-2">
+            {!isNavigating ? (
+              <button
+                onClick={startNavigation}
+                className="flex-1 py-3 bg-green-500 text-white rounded-lg font-semibold"
+              >
+                เริ่มนำทาง
+              </button>
+            ) : (
+              <button
+                onClick={stopNavigation}
+                className="flex-1 py-3 bg-red-500 text-white rounded-lg font-semibold"
+              >
+                หยุดนำทาง
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <style jsx global>{`
+        @keyframes pulse {
+          0% {
+            transform: scale(1);
+            opacity: 1;
+          }
+          50% {
+            transform: scale(1.5);
+            opacity: 0.5;
+          }
+          100% {
+            transform: scale(2);
+            opacity: 0;
+          }
+        }
+      `}</style>
     </div>
   );
 }
