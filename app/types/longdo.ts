@@ -24,10 +24,10 @@ export interface RouteSegment {
   from: LongdoPlace;
   to: LongdoPlace;
   distance: string;
-  time?: number; // เวลาจริงจาก API (วินาที)
-  estimatedTime?: number; // เวลาประมาณ (นาที)
-  path?: any[]; // พิกัดเส้นทาง
-  guide?: any[]; // คำแนะนำการเดินทาง
+  time?: number;
+  estimatedTime?: number;
+  path?: Array<{lon: number, lat: number}>;  // แก้จาก any[]
+  guide?: Array<{text: string}>;  // แก้จาก any[]
 }
 
 export interface RouteResponse {
@@ -36,7 +36,7 @@ export interface RouteResponse {
   segments: RouteSegment[];
   totalDistance: string;
   totalTime: number;
-  paths?: any[]; // พิกัดเส้นทางทั้งหมด
-  hasNavigation: boolean; // บอกว่ามีข้อมูลนำทางจริงหรือไม่
-  routeGeometry?: any;
+  paths?: Array<{lon: number, lat: number}>;  // แก้จาก any[]
+  hasNavigation: boolean;
+  routeGeometry?: Record<string, unknown>;  // แก้จาก any
 }

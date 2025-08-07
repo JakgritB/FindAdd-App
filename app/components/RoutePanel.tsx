@@ -103,7 +103,9 @@ export default function RoutePanel({ places, onRouteCalculated, onStartNavigatio
   const clearRoute = () => {
     setRoute(null);
     setStartLocation(null);
-    onRouteCalculated(null as any);
+    onRouteCalculated(null!);  // เพิ่ม ! หรือแก้เป็น
+    // หรือ
+    // if (onRouteCalculated) onRouteCalculated(null as any);
   };
 
   const formatTime = (minutes: number) => {
@@ -140,8 +142,8 @@ export default function RoutePanel({ places, onRouteCalculated, onStartNavigatio
             </label>
             {!useCurrentLocation && places.length > 0 && (
               <p className="text-xs text-gray-500 mt-1 ml-6">
-                หรือจะใช้ "{places[0]?.name}" เป็นจุดเริ่มต้น
-              </p>
+              หรือจะใช้ &quot;{places[0]?.name}&quot; เป็นจุดเริ่มต้น
+            </p>
             )}
           </div>
 

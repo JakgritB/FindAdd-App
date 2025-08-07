@@ -4,8 +4,8 @@ import { useState, useEffect, useRef } from 'react';
 import { LongdoSearchResult } from '../types/longdo';
 
 interface SearchBarProps {
-    onAddPlace: (place: any) => void;
-}
+    onAddPlace: (place: LongdoPlace) => void;  // แก้จาก any
+  }
 
 export default function SearchBar({ onAddPlace }: SearchBarProps) {
     const [keyword, setKeyword] = useState('');

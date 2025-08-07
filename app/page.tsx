@@ -83,10 +83,10 @@ export default function Home() {
       <div className="max-w-7xl mx-auto">
         <div className="mb-6">
           <h1 className="text-3xl font-bold text-gray-900">
-            🚚 FindAdd - ระบบนำทางส่งพัสดุอัจฉริยะ
+          🚚 FindAdd 
           </h1>
           <p className="text-gray-600 mt-2">
-            📍 ค้นหาสถานที่ในจังหวัดอุดรธานี | คำนวณเส้นทางที่ดีที่สุด | นำทางด้วย GPS
+          [Find Address]📍ค้นหาบ้าน พร้อมคำนวนเส้นทาง
           </p>
         </div>
         
@@ -113,7 +113,7 @@ export default function Home() {
               userPosition={currentUserPosition}
             />
             
-            {places.length === 0 && (
+            {/* {places.length === 0 && (
               <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
                 <h3 className="font-semibold text-blue-900 mb-2">📖 วิธีใช้งาน:</h3>
                 <ol className="text-sm text-blue-800 space-y-1">
@@ -124,7 +124,7 @@ export default function Home() {
                   <li>5. 📤 ส่งออกหรือแชร์เส้นทางให้คนขับ</li>
                 </ol>
               </div>
-            )}
+            )} */}
           </div>
         </div>
       </div>

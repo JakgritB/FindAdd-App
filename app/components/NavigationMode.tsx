@@ -24,12 +24,12 @@ export default function NavigationMode({ route, onUpdatePosition, onClose }: Nav
   const [isNavigating, setIsNavigating] = useState(false);
   const [speed, setSpeed] = useState(0);
   const [apiKey, setApiKey] = useState<string>('');
-  
+
   const watchIdRef = useRef<number | null>(null);
   const mapRef = useRef<HTMLDivElement>(null);
-  const mapInstance = useRef<any>(null);
-  const userMarkerRef = useRef<any>(null);
-  const routeLineRef = useRef<any>(null);
+  const mapInstance = useRef<LongdoMapInstance | null>(null);
+  const markersRef = useRef<LongdoMarker[]>([]);
+  const routeLinesRef = useRef<LongdoPolyline[]>([]);
   const destinationMarkersRef = useRef<any[]>([]);
 
   // ดึง API Key
@@ -57,10 +57,10 @@ export default function NavigationMode({ route, onUpdatePosition, onClose }: Nav
     map.Layers.add(window.longdo.Layers.TRAFFIC);
 
     mapInstance.current = map;
-    
+
     // วาดเส้นทาง
     drawRoute();
-    
+
     // เพิ่มหมุดปลายทาง
     addDestinationMarkers();
   };
@@ -121,7 +121,7 @@ export default function NavigationMode({ route, onUpdatePosition, onClose }: Nav
     route.route.forEach((place, index) => {
       let markerColor = '#3B82F6';
       let markerIcon = (index + 1).toString();
-      
+
       if (index === 0) {
         markerColor = '#10B981';
         markerIcon = 'S';
@@ -153,7 +153,7 @@ export default function NavigationMode({ route, onUpdatePosition, onClose }: Nav
           }
         }
       );
-      
+
       mapInstance.current.Overlays.add(marker);
       destinationMarkersRef.current.push(marker);
     });
@@ -199,7 +199,7 @@ export default function NavigationMode({ route, onUpdatePosition, onClose }: Nav
         }
       }
     );
-    
+
     mapInstance.current.Overlays.add(userMarker);
     userMarkerRef.current = userMarker;
 
@@ -212,11 +212,11 @@ export default function NavigationMode({ route, onUpdatePosition, onClose }: Nav
     const R = 6371000;
     const dLat = (lat2 - lat1) * Math.PI / 180;
     const dLon = (lon2 - lon1) * Math.PI / 180;
-    const a = 
-      Math.sin(dLat/2) * Math.sin(dLat/2) +
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
       Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-      Math.sin(dLon/2) * Math.sin(dLon/2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     return R * c;
   };
 
@@ -233,11 +233,11 @@ export default function NavigationMode({ route, onUpdatePosition, onClose }: Nav
       (position) => {
         setCurrentPosition(position);
         setSpeed(position.coords.speed || 0);
-        
+
         // อัปเดตตำแหน่งบนแผนที่
         updateUserPosition(position.coords.latitude, position.coords.longitude);
         onUpdatePosition(position.coords.latitude, position.coords.longitude);
-        
+
         // ตรวจสอบการนำทาง
         checkNavigation(position);
       },
@@ -274,12 +274,12 @@ export default function NavigationMode({ route, onUpdatePosition, onClose }: Nav
     if (distance < 50) {
       setCurrentSegmentIndex(prev => prev + 1);
       speakDirection(`ถึง ${nextPoint.name} แล้ว`);
-      
+
       // Highlight marker ที่ถึงแล้ว
       if (destinationMarkersRef.current[currentSegmentIndex + 1]) {
         // เปลี่ยนสี marker
         mapInstance.current.Overlays.remove(destinationMarkersRef.current[currentSegmentIndex + 1]);
-        
+
         const completedMarker = new window.longdo.Marker(
           { lon: nextPoint.lon, lat: nextPoint.lat },
           {
@@ -300,7 +300,7 @@ export default function NavigationMode({ route, onUpdatePosition, onClose }: Nav
             }
           }
         );
-        
+
         mapInstance.current.Overlays.add(completedMarker);
         destinationMarkersRef.current[currentSegmentIndex + 1] = completedMarker;
       }
@@ -367,12 +367,12 @@ export default function NavigationMode({ route, onUpdatePosition, onClose }: Nav
             </svg>
           </button>
         </div>
-        
+
         {/* Navigation Info Bar */}
         <div className="bg-blue-700 px-4 py-3">
           <div className="text-center">
             <div className="text-3xl font-bold">
-              {distanceToNext > 1000 
+              {distanceToNext > 1000
                 ? `${(distanceToNext / 1000).toFixed(1)} กม.`
                 : `${Math.round(distanceToNext)} ม.`
               }
@@ -397,7 +397,7 @@ export default function NavigationMode({ route, onUpdatePosition, onClose }: Nav
               onLoad={initMap}
             />
             <div ref={mapRef} className="w-full h-full" />
-            
+
             {/* Zoom Controls */}
             <div className="absolute bottom-20 right-4 flex flex-col gap-2">
               <button
@@ -433,7 +433,7 @@ export default function NavigationMode({ route, onUpdatePosition, onClose }: Nav
               {route.route[currentSegmentIndex + 1]?.name || 'จุดหมายสุดท้าย'}
             </span>
           </div>
-          
+
           <div className="flex gap-2">
             {!isNavigating ? (
               <button
