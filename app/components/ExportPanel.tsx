@@ -23,8 +23,8 @@ export default function ExportPanel({ places, route }: ExportPanelProps) {
       ลองจิจูด: place.lon,
       ระยะทางจากจุดก่อนหน้า: route.segments[index - 1]?.distance || '-',
       เวลาเดินทาง: route.segments[index - 1]?.time 
-        ? `${Math.ceil(route.segments[index - 1].time / 60)} นาที` 
-        : '-'
+       // ? `${Math.ceil(route.segments[index - 1].time / 60)} นาที` 
+        //: '-'
     }));
 
     // สร้าง CSV content
