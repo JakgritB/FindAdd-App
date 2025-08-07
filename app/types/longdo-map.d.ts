@@ -49,7 +49,13 @@ declare global {
     }) => void;
   }
   
-  interface LongdoMarker {}
-  interface LongdoPolyline {}
+  // แก้จาก empty interface
+  interface LongdoMarker {
+    _id?: string; // เพิ่ม property อย่างน้อย 1 ตัว
+  }
+  
+  interface LongdoPolyline {
+    _id?: string; // เพิ่ม property อย่างน้อย 1 ตัว
+  }
   
   export {};

@@ -1,14 +1,8 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import Script from 'next/script';
 import { LongdoPlace, RouteResponse } from '../types/longdo';
-
-declare global {
-  interface Window {
-    longdo: any;
-  }
-}
 
 interface LongdoMapProps {
   places: LongdoPlace[];
@@ -22,7 +16,7 @@ export default function LongdoMap({ places, selectedPlace, route, userPosition }
   const mapInstance = useRef<LongdoMapInstance | null>(null);
   const markersRef = useRef<LongdoMarker[]>([]);
   const routeLinesRef = useRef<LongdoPolyline[]>([]);
-  const userMarkerRef = useRef<any>(null);
+  const userMarkerRef = useRef<LongdoMarker | null>(null);
   const [apiKey, setApiKey] = useState<string>('');
   const [isDrawingRoute, setIsDrawingRoute] = useState(false);
 
@@ -33,44 +27,44 @@ export default function LongdoMap({ places, selectedPlace, route, userPosition }
       .catch(err => console.error('Failed to load map config:', err));
   }, []);
 
-  const initMap = () => {
-    if (!mapRef.current || !window.longdo) return;
-
-    const map = new window.longdo.Map({
-      placeholder: mapRef.current,
-      lastView: false,
-      zoom: 13,
-      location: { lon: 102.7880, lat: 17.4138 }
-    });
-
-    // เปิดใช้งาน Layer การจราจร
-    map.Layers.setBase(window.longdo.Layers.GRAY);
-    map.Layers.add(window.longdo.Layers.TRAFFIC);
-
-    mapInstance.current = map;
-    updateMarkers();
-  };
-
-  const clearRoutes = () => {
+  const clearRoutes = useCallback(() => {
     if (!mapInstance.current || !window.longdo) return;
-
+    
     routeLinesRef.current.forEach(line => {
-      mapInstance.current.Overlays.remove(line);
+      mapInstance.current?.Overlays.remove(line);
     });
     routeLinesRef.current = [];
-  };
+  }, []);
 
-  const drawNavigationRoute = async () => {
+  const drawStraightRoute = useCallback(() => {
+    if (!mapInstance.current || !window.longdo || !route) return;
+    
+    const lineCoordinates = route.route.map(place => ({
+      lon: place.lon,
+      lat: place.lat
+    }));
+
+    const line = new window.longdo.Polyline(lineCoordinates, {
+      lineWidth: 4,
+      lineColor: 'rgba(59, 130, 246, 0.6)',
+      lineStyle: window.longdo.LineStyle.Dashed
+    });
+
+    mapInstance.current.Overlays.add(line);
+    routeLinesRef.current.push(line);
+  }, [route]);
+
+  const drawNavigationRoute = useCallback(async () => {
     if (!mapInstance.current || !window.longdo || !route || !route.hasNavigation) return;
-
+    
     setIsDrawingRoute(true);
     clearRoutes();
 
     try {
       if (route.paths && route.paths.length > 0) {
-        const pathCoordinates = route.paths.map((point: any) => ({
-          lon: point.lon || point[0],
-          lat: point.lat || point[1]
+        const pathCoordinates = route.paths.map((point: {lon?: number, lat?: number} | number[]) => ({
+          lon: (point as {lon?: number})?.lon || (point as number[])[0],
+          lat: (point as {lat?: number})?.lat || (point as number[])[1]
         }));
 
         const navigationLine = new window.longdo.Polyline(pathCoordinates, {
@@ -90,31 +84,13 @@ export default function LongdoMap({ places, selectedPlace, route, userPosition }
     } finally {
       setIsDrawingRoute(false);
     }
-  };
+  }, [route, clearRoutes, drawStraightRoute]);
 
-  const drawStraightRoute = () => {
-    if (!mapInstance.current || !window.longdo || !route) return;
-
-    const lineCoordinates = route.route.map(place => ({
-      lon: place.lon,
-      lat: place.lat
-    }));
-
-    const line = new window.longdo.Polyline(lineCoordinates, {
-      lineWidth: 4,
-      lineColor: 'rgba(59, 130, 246, 0.6)',
-      lineStyle: window.longdo.LineStyle.Dashed
-    });
-
-    mapInstance.current.Overlays.add(line);
-    routeLinesRef.current.push(line);
-  };
-
-  const updateMarkers = () => {
+  const updateMarkers = useCallback(() => {
     if (!mapInstance.current || !window.longdo) return;
 
     markersRef.current.forEach(marker => {
-      mapInstance.current.Overlays.remove(marker);
+      mapInstance.current?.Overlays.remove(marker);
     });
     markersRef.current = [];
 
@@ -123,10 +99,10 @@ export default function LongdoMap({ places, selectedPlace, route, userPosition }
     displayPlaces.forEach((place, index) => {
       const isStart = route && index === 0;
       const isEnd = route && index === displayPlaces.length - 1;
-
+      
       let markerColor = '#3B82F6';
       let markerIcon = (index + 1).toString();
-
+      
       if (isStart) {
         markerColor = '#10B981';
         markerIcon = '🚚';
@@ -165,13 +141,15 @@ export default function LongdoMap({ places, selectedPlace, route, userPosition }
           }
         }
       );
-
-      mapInstance.current.Overlays.add(marker);
+      
+      mapInstance.current?.Overlays.add(marker);
       markersRef.current.push(marker);
     });
 
     if (displayPlaces.length > 0) {
       setTimeout(() => {
+        if (!mapInstance.current) return;
+        
         if (displayPlaces.length === 1) {
           mapInstance.current.location({ lon: displayPlaces[0].lon, lat: displayPlaces[0].lat });
           mapInstance.current.zoom(16);
@@ -199,39 +177,26 @@ export default function LongdoMap({ places, selectedPlace, route, userPosition }
         }
       }, 100);
     }
+  }, [places, route]);
+
+  const initMap = () => {
+    if (!mapRef.current || !window.longdo) return;
+
+    const map = new window.longdo.Map({
+      placeholder: mapRef.current,
+      lastView: false,
+      zoom: 13,
+      location: { lon: 102.7880, lat: 17.4138 }
+    });
+
+    map.Layers.setBase(window.longdo.Layers.GRAY);
+    map.Layers.add(window.longdo.Layers.TRAFFIC);
+
+    mapInstance.current = map;
+    updateMarkers();
   };
 
-  // แสดงตำแหน่ง user
-  useEffect(() => {
-    if (!mapInstance.current || !window.longdo) return;
-
-    if (userMarkerRef.current) {
-      mapInstance.current.Overlays.remove(userMarkerRef.current);
-      userMarkerRef.current = null;
-    }
-
-    if (userPosition) {
-      const userMarker = new window.longdo.Marker(
-        { lon: userPosition.lon, lat: userPosition.lat },
-        {
-          title: 'ตำแหน่งของคุณ',
-          icon: {
-            html: `
-              <div style="position: relative;">
-                <div style="width: 20px; height: 20px; background: #3B82F6; border: 3px solid white; border-radius: 50%; box-shadow: 0 2px 6px rgba(0,0,0,0.3);"></div>
-                <div style="position: absolute; top: -5px; left: -5px; width: 30px; height: 30px; background: rgba(59, 130, 246, 0.3); border-radius: 50%; animation: pulse 2s infinite;"></div>
-             </div>`,
-            offset: { x: 10, y: 10 }
-          }
-        }
-      );
-
-      mapInstance.current.Overlays.add(userMarker);
-      userMarkerRef.current = userMarker;
-    }
-  }, [userPosition]);
-
-  // Update markers และ route เมื่อมีการเปลี่ยนแปลง
+  // Update markers and route
   useEffect(() => {
     if (mapInstance.current) {
       updateMarkers();
@@ -245,7 +210,7 @@ export default function LongdoMap({ places, selectedPlace, route, userPosition }
         clearRoutes();
       }
     }
-  }, [places, route]);
+  }, [places, route, updateMarkers, drawNavigationRoute, drawStraightRoute, clearRoutes]);
 
   // Focus on selected place
   useEffect(() => {

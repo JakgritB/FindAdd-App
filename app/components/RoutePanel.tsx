@@ -12,7 +12,6 @@ interface RoutePanelProps {
 export default function RoutePanel({ places, onRouteCalculated, onStartNavigation }: RoutePanelProps) {
   const [isCalculating, setIsCalculating] = useState(false);
   const [route, setRoute] = useState<RouteResponse | null>(null);
-  const [startLocation, setStartLocation] = useState<LongdoPlace | null>(null);
   const [useCurrentLocation, setUseCurrentLocation] = useState(false);
 
   const stripHtml = (html: string) => {
@@ -63,10 +62,9 @@ export default function RoutePanel({ places, onRouteCalculated, onStartNavigatio
         try {
           start = await getCurrentLocation();
           setStartLocation(start);
-        } catch (error) {
-          alert('ไม่สามารถดึงตำแหน่งปัจจุบันได้ กรุณาเปิด GPS และอนุญาตการเข้าถึงตำแหน่ง');
-          setIsCalculating(false);
-          return;
+        } catch (_error) {
+          console.error('Error calculating route:', _error);
+          alert('เกิดข้อผิดพลาดในการคำนวณเส้นทาง');
         }
       } else {
         start = places[0];
@@ -102,10 +100,10 @@ export default function RoutePanel({ places, onRouteCalculated, onStartNavigatio
 
   const clearRoute = () => {
     setRoute(null);
-    setStartLocation(null);
-    onRouteCalculated(null!);  // เพิ่ม ! หรือแก้เป็น
-    // หรือ
-    // if (onRouteCalculated) onRouteCalculated(null as any);
+    // setStartLocation(null); // ลบบรรทัดนี้ถ้าไม่ใช้ startLocation
+    if (onRouteCalculated) {
+      onRouteCalculated(null as unknown as RouteResponse);
+    }
   };
 
   const formatTime = (minutes: number) => {

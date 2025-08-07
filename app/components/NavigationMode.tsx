@@ -17,7 +17,6 @@ interface NavigationModeProps {
 }
 
 export default function NavigationMode({ route, onUpdatePosition, onClose }: NavigationModeProps) {
-  const [currentPosition, setCurrentPosition] = useState<GeolocationPosition | null>(null);
   const [currentSegmentIndex, setCurrentSegmentIndex] = useState(0);
   const [nextTurn, setNextTurn] = useState<string>('');
   const [distanceToNext, setDistanceToNext] = useState<number>(0);
